@@ -2,7 +2,6 @@
 A simple Python script to send messages to a sever over Bluetooth using
 Python sockets (with Python 3.3 or above).
 """
-
 import socket
 serverMACAddress = '68:9a:87:ca:c3:08'
 port = "/dev/cu.usbserial-014AD0FD"
