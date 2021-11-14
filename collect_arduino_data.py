@@ -7,14 +7,11 @@ port = 1
 sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM)
 sock.connect((bd_addr, port))
 
+# Board Specifics: https://learn.adafruit.com/adafruit-huzzah32-esp32-feather/overview
+# Pintout for the board : https://makeabilitylab.github.io/physcomp/esp32/esp32.html
+# https://people.csail.mit.edu/albert/bluez-intro/x290.html
 
-# sock.bind(bd_addr)
-# sock.listen(1)
 
-# server_sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-# server_sock.bind(("24:62:AB:D2:A7:06", port))
-# server_sock.listen(1)
-# client_sock, address = server_sock.accept()
 split = 0
 held = 0
 delimiter = '-'
