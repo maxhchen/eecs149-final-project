@@ -9,7 +9,7 @@ timeout = args.timeout
 handle_sigint()
 
 DISPLAY_SERVICE_UUID = "32e61089-2b22-4db5-a914-43ce41986c70"
-DISPLAY_CHAR_UUID    = "32e62489-2b22-4db5-a914-43ce41986c70"
+DISPLAY_CHAR_UUID    = "32e6038a-2b22-4db5-a914-43ce41986c70"
 
 LAB11 = 0x02e0
 
@@ -18,7 +18,6 @@ async def main(address):
     try:
         async with BleakClient(address) as client:
             print(f"Connected to device {client.address}: {client.is_connected}")
-            print(client.services.keys())
             sv = client.services[DISPLAY_SERVICE_UUID]
             try:
                 print("Type message and send with Enter key")

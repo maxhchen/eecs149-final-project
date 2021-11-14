@@ -15,7 +15,6 @@ async def main(address):
         dev = await BleakScanner.find_device_by_address(address,timeout=timeout)
         if dev:
             print(f"found device {dev.address}")
-            print(dev.metadata)
             for company,data in dev.metadata['manufacturer_data'].items():
                 if company == LAB11:
                     try:

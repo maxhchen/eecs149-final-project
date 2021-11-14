@@ -53,12 +53,6 @@ class RobotController():
     def __enter__(self):
         return self
 
-async def send_mode(robot):
-    while True:
-        print("Robot mode:", mode)
-        await robot.write_gatt_char(MODE_UUID, bytes([mode]))
-        await asyncio.sleep(0.1)
-
 async def main(address):
     print(f"searching for device {address} ({timeout}s timeout)")
     try:
