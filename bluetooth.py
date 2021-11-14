@@ -1,6 +1,11 @@
 """
 A simple Python script to send messages to a sever over Bluetooth using
 Python sockets (with Python 3.3 or above).
+
+
+Board: 68-9A-87-CA-C3-08	
+
+Mine: DC-A9-04-80-95-B7 
 """
 import socket
 serverMACAddress = '68:9a:87:ca:c3:08'
