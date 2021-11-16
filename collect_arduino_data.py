@@ -24,10 +24,10 @@ while True:
     # sock.send(data.encode())
 
     # param = buffer width, # Bytes to receive over socket
-    receive_data = sock.recv(4096)
+    raw_data = sock.recv(4096)
 
     # decode received data into interpretable data type (string)
-    decoded_data = receive_data.decode()
+    decoded_data = raw_data.decode()
     
     # strip string and split by specified delimiter; ignore the first and last elements to prevent
     # edge behavior with sending data over sockets.
@@ -38,20 +38,34 @@ while True:
     # always be the first value in a packet, meaning we can deal with this by ignoring those values.
     # Due to the speed at which we are sending sensor data, missing a single data point is not significant,
     # and we need to perform processing regardless, meaning the precision of the raw data does not matter.
-    split_data = np.array(decoded_data.strip().split(delimiter))[1:-1] 
+    decoded_data = np.array(decoded_data.strip().split(delimiter))[1:-1] 
 
     # Remove any remaining null data
-    split_data = split_data[split_data != '']
+    decoded_data = decoded_data[decoded_data != '']
 
     # Parse characters as floating-point values
-    float_data = split_data.astype(float)
+    data = decoded_data.astype(float)
 
     # As a sanity check, verify that the data array is not empty -- then, perform processing:
-    if (len(float_data) != 0):
-        print(np.round(np.mean(float_data), 2))
+    if (len(data) != 0):
+        '''
+        Name: moving_average
+        Description: Quick implementation of a moving average filter
+        [float] = fn([float] x, int w)
+
+        sequence:   data array = [float] (1, N)
+        width:      filter width = int (1, 1)
+        --
+        rv:         array of averages = [float] (1, N - w + 1)
+        '''
+        def moving_average(sequence, width):
+            return np.convolve(sequence, np.ones(width), 'valid') / width
+
+        print(moving_average(data, len(data)))
+
+
+
     time.sleep(0.25)
- 
-    # print(receive_data.decode())
-    # print(ord(receive_data.decode()))
+### END OF COMMUNICATION LOOP ###
 
 # sock.close()
