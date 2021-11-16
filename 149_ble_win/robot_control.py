@@ -12,12 +12,9 @@ timeout = args.timeout
 handle_sigint()
 
 SERVICE_UUID = "4607eda0-f65e-4d59-a9ff-84420d87a4ca"
-CHAR_UUIDS = {
-    "up": "4607108a-f65e-4d59-a9ff-84420d87a4ca",
-    "down": "4607208a-f65e-4d59-a9ff-84420d87a4ca",
-    "left": "4607308a-f65e-4d59-a9ff-84420d87a4ca",
-    "right": "4607408a-f65e-4d59-a9ff-84420d87a4ca",
-}
+MODE_UUID = "46071111-f65e-4d59-a9ff-84420d87a4ca"
+
+mode = 0
 
 class RobotController():
     def __init__(self, client):
@@ -29,6 +26,7 @@ class RobotController():
         keyboard.hook(self.on_key_event)
 
     def on_key_event(self, event):
+        global mode
         # if a key unrelated to direction keys is pressed, ignore
         if event.name not in self.pressed: return
         # if a key is pressed down
@@ -39,11 +37,18 @@ class RobotController():
             print(event.name)
             # set state of key to pressed
             self.pressed[event.name] = True
-            # TODO write to characteristic to change direction
+            if event.name == "up":
+                mode = 1
+            elif event.name == "down":
+                mode = 2
+            elif event.name == "left":
+                mode = 3
+            elif event.name == "right":
+                mode = 4
         else:
             # set state of key to released
             self.pressed[event.name] = False
-            # TODO write to characteristic to stop moving in this direction
+            mode = 0
 
     def __enter__(self):
         return self
@@ -54,8 +59,13 @@ async def main(address):
         async with BleakClient(address,timeout=timeout) as client:
             print("connected")
             robot = RobotController(client)
+            # task = asyncio.create_task(send_mode(robot))
             try:
-                getpass("Use arrow keys to control robot")
+                # getpass("Use arrow keys to control robot")
+                while True:
+                    print("Robot mode:", mode)
+                    await client.write_gatt_char(MODE_UUID, bytes([mode]))
+                    await asyncio.sleep(0.1)
             except KeyboardInterrupt as e:
                 sys.exit(0)
             finally:

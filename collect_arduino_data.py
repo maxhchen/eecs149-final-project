@@ -2,6 +2,10 @@ import bluetooth
 import time
 import numpy as np
 
+# Board Specifics: https://learn.adafruit.com/adafruit-huzzah32-esp32-feather/overview
+# Pintout for the board : https://makeabilitylab.github.io/physcomp/esp32/esp32.html
+# https://people.csail.mit.edu/albert/bluez-intro/x290.html
+
 # ESP32 Metadata
 bd_addr = "24:62:AB:D2:A7:06"
 port = 1
@@ -9,6 +13,7 @@ port = 1
 # Establish BLE Socket to communicate between computer and ESP32 board
 sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM)
 sock.connect((bd_addr, port))
+
 
 delimiter = '|'
 
