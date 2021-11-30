@@ -61,25 +61,26 @@ if __name__ == '__main__':
     cur_vel = np.array([drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()])
     init_yaw = drone.get_yaw()
     init_height = drone.get_distance_tof()
+    print("init height:", init_height)
     rotate_deg = 90
 
     yaw_pid = PID(p=2.5, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=init_yaw + rotate_deg, state_getter=drone.get_yaw)
-    z_pid = PID(p=1.0, i=0, d=0, sat=float('inf'), goal_thresh=1, setpoint=0, state_getter=drone.get_speed_z)
-    height_pid = PID(p=2.5, i=0, d=0, sat=float('inf'), goal_thresh=1, setpoint=init_height, state_getter=drone.get_height)
+    height_pid = PID(p=1.0, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=150, state_getter=drone.get_distance_tof)
+    # z_pid = PID(p=1.0, i=0, d=0, sat=float('inf'), goal_thresh=1, setpoint=0, state_getter=drone.get_speed_z)
 
     start_time = time.time()
     yaw_pid.reset()
-    z_pid.reset()
+    height_pid.reset()
     try:
-        while not yaw_pid.onTarget():
+        while not (height_pid.onTarget() and yaw_pid.onTarget()):
             yaw_vel = yaw_pid.calculate(time.time() - start_time)
-            z_speed = z_pid.calculate(time.time() - start_time)
-            print(drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], drone.get_distance_tof(), drone.get_height())
-            drone.send_rc_control(0, 0, 0, int(yaw_vel))
+            z_vel = height_pid.calculate(time.time() - start_time)
+            print(drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], [drone.get_acceleration_x(), drone.get_acceleration_y(), drone.get_acceleration_z()], drone.get_distance_tof(), drone.get_height())
+            drone.send_rc_control(0, 0, int(z_vel), int(yaw_vel))
             if yaw_pid.onTarget():
                 print("yaw setpoint achieved")
-            if z_pid.onTarget():
-                print("z speed setpoint achieved")
+            if height_pid.onTarget():
+                print("height setpoint achieved")
             time.sleep(.01)
     except KeyboardInterrupt:
         pass

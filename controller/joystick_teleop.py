@@ -142,6 +142,8 @@ class FPVWindow:
                 hat = self.joy.get_hat(i)
                 self.textPrint.tprint("Hat {} value: {}".format(i, str(hat)))
 
+            self.textPrint.tprint(f"{(self.tello.query_attitude(), [self.tello.get_speed_x(), self.tello.get_speed_y(), self.tello.get_speed_z()], [self.tello.get_acceleration_x(), self.tello.get_acceleration_y(), self.tello.get_acceleration_z()], self.tello.get_distance_tof(), self.tello.get_height())}")
+
             pygame.display.update()
             self.textPrint.reset()
             self.clock.tick(FPS)

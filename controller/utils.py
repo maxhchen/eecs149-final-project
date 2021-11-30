@@ -17,6 +17,6 @@ def get_tello_frame(drone, width = 360, height = 240): # width and height for im
     image = tello_frame.frame 
     image = cv2.resize(image, (width, height))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = np.rot90(image)
-    image = np.flipud(image)
+    # image = np.rot90(image)
+    # image = np.flipud(image)
     return image
