@@ -5,6 +5,7 @@ import numpy as np
 import time
 
 from utils import *
+from detect_hands import HandDetector
 
 # Define some colors.
 BLACK = pygame.Color('black')
@@ -48,6 +49,7 @@ class FPVWindow:
         self.screen = pygame.display.set_mode([960, 720])
 
         self.tello = init_drone()
+        self.tello.send_rc_control(0, 0, 0, 0)
 
         # Drone velocities between -100,100
         self.forw_back_velocity = 0
@@ -101,6 +103,11 @@ class FPVWindow:
                     self.tello.takeoff()
                     self.send_rc_control = True
 
+            button_b = self.joy.get_button(1)
+            if button_b:
+                done = True
+                break
+
             dpad = self.joy.get_hat(0)
             if dpad != (0, 0) and self.send_rc_control:
                 self.send_rc_control = False
@@ -116,6 +123,9 @@ class FPVWindow:
 
             # Displaying video + battery percentage
             frame = frame_read.frame
+            frame = detector.findHands(frame)
+            lmlist = detector.findPosition(frame)
+
             text = "Battery: {}%".format(self.tello.get_battery())
             cv2.putText(frame, text, (5, 720 - 5),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -160,6 +170,7 @@ class FPVWindow:
 
 if __name__ == '__main__':
     window = FPVWindow()
+    detector = HandDetector()
     try:
         window.run()
     except Exception as e:
