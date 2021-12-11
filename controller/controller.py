@@ -76,7 +76,7 @@ if __name__ == '__main__':
             yaw_vel = yaw_pid.calculate(time.time() - start_time)
             z_vel = height_pid.calculate(time.time() - start_time)
             print(drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], [drone.get_acceleration_x(), drone.get_acceleration_y(), drone.get_acceleration_z()], drone.get_distance_tof(), drone.get_height())
-            drone.send_rc_control(0, 0, int(z_vel), int(yaw_vel))
+            drone.x _control(0, 0, int(z_vel), int(yaw_vel))
             if yaw_pid.onTarget():
                 print("yaw setpoint achieved")
             if height_pid.onTarget():
