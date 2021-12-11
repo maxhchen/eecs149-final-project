@@ -1,4 +1,5 @@
 import time
+import threading
 
 import numpy as np
 
@@ -15,7 +16,7 @@ class PID:
         self.sat = sat
         self.setpoint = setpoint
         self.goal_thresh = goal_thresh
-        self.curVal = state_getter
+        self.cur_val = state_getter
         self.reset()
 
     def reset(self):
@@ -23,11 +24,8 @@ class PID:
         self.prevIntegral = 0.0
         self.prevTime = 0.0
 
-    def setSetpoint(self, setpoint):
-        self.setpoint = setpoint
-
     def calculate(self, curTime):
-        error = self.setpoint - self.curVal()
+        error = self.setpoint - self.cur_val()
         p_term = self.p*error
         if curTime - self.prevTime != 0:
             d_term = self.d*(error - self.prevError)/(curTime - self.prevTime)
@@ -46,45 +44,95 @@ class PID:
             u = u / np.linalg.norm(u) * self.sat
             self.prevIntegral = 0.0
         
-        print("setpoint curVal u error:", self.setpoint, self.curVal(), u, error)
+        # print("setpoint cur_val u error:", self.setpoint, self.cur_val(), u, error, flush=True)
         return u
 
-    def onTarget(self):
-        return np.abs(self.setpoint - self.curVal()) < self.goal_thresh
+    def on_target(self):
+        return np.abs(self.setpoint - self.cur_val()) < self.goal_thresh
+
+class Controller:
+
+    def __init__(self, drone=None):
+        if drone is None:
+            drone = init_drone()
+            drone.streamoff()
+            drone.takeoff()
+        self.drone = drone
+
+        self.init_yaw = drone.get_yaw()
+        self.init_height = drone.get_height()
+
+        self.yaw_pid = PID(p=2.5, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=self.init_yaw, state_getter=drone.get_yaw)
+        self.height_pid = PID(p=1.5, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=self.init_height, state_getter=drone.get_distance_tof)
+
+        self.x_pid = PID(p=-.5, i=0.00, d=0, sat=100, goal_thresh=2, setpoint=0, state_getter=drone.get_acceleration_x)
+        self.y_pid = PID(p=-.5, i=0.00, d=0, sat=100, goal_thresh=2, setpoint=0, state_getter=drone.get_acceleration_y)
+
+        self.start_time = time.time()
+        
+        self.stop_event = threading.Event()
+
+    def start(self):
+        self.yaw_pid.reset()
+        self.height_pid.reset()
+        self.x_pid.reset()
+        self.y_pid.reset()
+        self.stop_event.clear()
+        self.start_time = time.time()
+        self.thread = threading.Thread(target=self.send_control, args=())
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def send_control(self):
+        # Estimate bias of acceleromters and remove it from sensor reading for PID
+        x_accel = []
+        y_accel = []
+        for i in range(50):
+            x_accel.append(self.drone.get_acceleration_x())
+            y_accel.append(self.drone.get_acceleration_y())
+            time.sleep(0.01)
+        x_bias = sum(x_accel) / len(x_accel)
+        y_bias = sum(y_accel) / len(y_accel)
+        x_corrected = lambda: self.drone.get_acceleration_x() - x_bias
+        y_corrected = lambda: self.drone.get_acceleration_y() - y_bias
+        self.x_pid.cur_val = x_corrected
+        self.y_pid.cur_val = y_corrected
+
+        self.yaw_pid.setpoint = 90 + self.init_yaw
+        
+        while not self.stop_event.is_set():
+            yaw_vel = self.yaw_pid.calculate(time.time() - self.start_time)
+            z_vel = self.height_pid.calculate(time.time() - self.start_time)
+            x_vel = self.x_pid.calculate(time.time() - self.start_time)
+            y_vel = self.y_pid.calculate(time.time() - self.start_time)
+            print("RC Vel:", round(x_vel, 2), round(y_vel, 2), round(x_corrected(), 2), round(y_corrected(), 2))
+            drone = self.drone
+            print(drone.get_battery(), self.init_height, self.init_yaw, drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], [drone.get_acceleration_x(), drone.get_acceleration_y(), drone.get_acceleration_z()], drone.get_distance_tof(), drone.get_height())
+            self.drone.send_rc_control(0, 0, int(z_vel), int(yaw_vel))
+            time.sleep(0.01)
+        print("Finished autonomous control")
+
+    def on_target(self):
+        return self.yaw_pid.on_target() and self.height_pid.on_target() #and self.x_pid.on_target() and self.y_pid.on_target()
 
 if __name__ == '__main__':
-    drone = init_drone()
-    drone.streamoff()
-    drone.takeoff()
+    controller = Controller()
+    controller.start()
+    drone = controller.drone
 
-    vel_setpoint = np.zeros(3)
-    cur_vel = np.array([drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()])
-    init_yaw = drone.get_yaw()
-    init_height = drone.get_distance_tof()
-    print("init height:", init_height)
-    rotate_deg = 90
-
-    yaw_pid = PID(p=2.5, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=init_yaw + rotate_deg, state_getter=drone.get_yaw)
-    height_pid = PID(p=1.0, i=0, d=0, sat=float('inf'), goal_thresh=2, setpoint=150, state_getter=drone.get_distance_tof)
-    # z_pid = PID(p=1.0, i=0, d=0, sat=float('inf'), goal_thresh=1, setpoint=0, state_getter=drone.get_speed_z)
-
-    start_time = time.time()
-    yaw_pid.reset()
-    height_pid.reset()
     try:
-        while not (height_pid.onTarget() and yaw_pid.onTarget()):
-            yaw_vel = yaw_pid.calculate(time.time() - start_time)
-            z_vel = height_pid.calculate(time.time() - start_time)
-            print(drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], [drone.get_acceleration_x(), drone.get_acceleration_y(), drone.get_acceleration_z()], drone.get_distance_tof(), drone.get_height())
-            drone.x _control(0, 0, int(z_vel), int(yaw_vel))
-            if yaw_pid.onTarget():
-                print("yaw setpoint achieved")
-            if height_pid.onTarget():
-                print("height setpoint achieved")
-            time.sleep(.01)
+        controller.height_pid.setpoint = 100
+        while not controller.on_target():
+            # print(drone.get_battery(), controller.init_height, controller.init_yaw, drone.get_yaw(), [drone.get_speed_x(), drone.get_speed_y(), drone.get_speed_z()], [drone.get_acceleration_x(), drone.get_acceleration_y(), drone.get_acceleration_z()], drone.get_distance_tof(), drone.get_height())
+            # if controller.x_pid.on_target():
+            #     print("x setpoint achieved")
+            # if controller.y_pid.on_target():
+            #     print("y setpoint achieved")
+            time.sleep(.1)
+        print("Controller on target")
     except KeyboardInterrupt:
-        pass
-    
+        controller.stop()
 
-    drone.land()
     drone.end()
