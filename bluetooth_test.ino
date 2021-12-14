@@ -1,9 +1,12 @@
 #include "BluetoothSerial.h"
 #include "esp_bt_device.h"
 #include "MPU9250.h"
+#include <SparkFunADXL313.h> 
 
 uint8_t addrs[7] = {0};
 uint8_t device_count = 0;
+// /Click here to get the library: http://librarymanager/All#SparkFun_ADXL313
+// DXL313 myAdxl;
 
 template <typename WireType = TwoWire>
 void scan_mpu(WireType& wire = Wire) {
@@ -74,21 +77,30 @@ const int pin27 = 27;
 void setup() {
   // Setup Bluetooth
   Serial.begin(115200);
+  Wire.begin();
   SerialBT.begin("ESP32 EECS149");
   Serial.println("The device started, now you can pair it with bluetooth!");
-  //  printDeviceAddress();
+  printDeviceAddress();
 
   // join I2C bus (I2Cdev library doesn't do this automatically)
-  Wire.begin();
-  delay(2000);
+    
+//  if (myAdxl.begin() == false) //Begin communication over I2C
+//  {
+//    Serial.println("The sensor did not respond. Please check wiring.");
+//    while(1); //Freeze
+//  }
+//  Serial.print("Sensor is connected properly.");
+//  
+//  myAdxl.measureModeOn(); // wakes up the sensor from standby and puts it into measurement mode
+//  delay(2000);
 
   // Calibrate MPU https://github.com/hideakitai/MPU9250
-    scan_mpu();
-  
-    if (device_count == 0) {
-      Serial.println("No device found on I2C bus. Please check your hardware connection");
-      while (1);
-    }
+  scan_mpu();
+
+  if (device_count == 0) {
+    Serial.println("No device found on I2C bus. Please check your hardware connection");
+    while (1);
+  }
   
   for (uint8_t i = 0; i < device_count; ++i) {
       Serial.print("I2C address 0x");
@@ -132,10 +144,10 @@ void setup() {
 
 // can only write a maximum of 8 bit integer
 void loop() {
-  if (mpu.update()) {
+if (mpu.update()) {
 
     // Accelerometer Readings
-    Serial.print("Accel: "); Serial.print(mpu.getAccX()); Serial.print(", "); Serial.print(mpu.getAccY()); Serial.print(", "); Serial.println(mpu.getAccZ());
+    // Serial.print("Accel: "); Serial.print(mpu.getAccX()); Serial.print(", "); Serial.print(mpu.getAccY()); Serial.print(", "); Serial.println(mpu.getAccZ());
 
     // Sending the readings to bluetooth
     SerialBT.print(mpu.getAccX());
@@ -167,7 +179,7 @@ void loop() {
     Serial.println(pin15_val);
     Serial.println(pin13_val);
     Serial.println(pin12_val);
-    
+//    
 
     // Sending the readings to bluetooth
     SerialBT.print(pin27_val);
@@ -180,7 +192,7 @@ void loop() {
     SerialBT.print("|");
 
     // Delay for sending the values
-    delay(200);
+    delay(50);
   }
 }
 

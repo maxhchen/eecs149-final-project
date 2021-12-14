@@ -9,6 +9,15 @@ from pygame import image
 from utils import *
 from detect_hands import HandDetector
 from controller import Controller
+import bluetooth 
+import time
+
+from generate_synthetic_data import generate_synthetic_data
+from drone import * 
+import signal
+import time
+from collect_arduino_data import * 
+from drone import * 
 
 # Define some colors.
 FPS = 120
@@ -81,7 +90,90 @@ class FPVWindow:
         frame_read = self.tello.get_frame_read()
         done = False
 
+        # ESP32 Metadata
+        bd_addr = "24:62:AB:D2:A7:06"
+        port = 1
+        INDEX = 1
+        MIDDLE = 2
+        RING = 3
+        PINKY = 4
+        fingers = [INDEX, MIDDLE, RING, PINKY]
+        packet_delimiter = '|'
+        value_delimiter = '_'
+        accel_offset, gyro_offset = calibrate_imu(100, packet_delimiter, value_delimiter)
+        print("Finished Calibrating IMU")
+
+        hold = False
+        held_data = ''
+        past_accel_values = None
+
+        debug = False 
+        if not debug:
+            sock=bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+            sock.connect((bd_addr, port))
+
         while not done:
+            # Get the data from bluetooth: 
+            if not hold:
+                decoded_data = receive_data_over_bluetooth()
+            else:
+                decoded_data = held_data + receive_data_over_bluetooth()
+                hold = False
+            if (decoded_data == "0.") or (decoded_data == "-"):
+                hold = True
+                held_data = decoded_data
+                continue
+            if decoded_data[-1] != packet_delimiter:
+                hold = True
+                held_data = decoded_data
+                continue;
+
+
+            if decoded_data.find(packet_delimiter) != -1:
+                decoded_packet = np.array(decoded_data.strip().split(packet_delimiter)) # [1:-1]
+            else:
+                decoded_packet = decoded_data
+            
+            if "0." in decoded_packet[-1] or "_" in decoded_packet[-1]:
+                decoded_packet = decoded_packet[:-1]
+            
+            if len(decoded_packet[-1]) == 1:
+                decoded_packet = decoded_packet[:-1]
+            
+            decoded_packet = decoded_packet[decoded_packet != '']
+            data = np.array([i.split(value_delimiter) for i in decoded_packet])
+
+            # Parse characters as floating-point values
+            data = data.astype(float)
+
+            if (len(data) != 0):
+                accel_values = np.array([moving_average(data[:, 0], len(data))[0], moving_average(data[:, 1], len(data))[0], moving_average(data[:, 2], len(data))[0]]) - accel_offset
+                gyro_values = np.array([moving_average(data[:, 3], len(data))[0],  moving_average(data[:, 4], len(data))[0], moving_average(data[:, 5], len(data))[0]]) - gyro_offset
+                index_finger_value = np.round(moving_average(data[:, offset + INDEX], len(data))[0], 2)
+                middle_finger_value =  np.round(moving_average(data[:, offset + MIDDLE], len(data))[0], 2)
+                ring_finger_value = np.round(moving_average(data[:, offset + RING], len(data))[0], 2)
+                pinky_finger_value = np.round(moving_average(data[:, offset + PINKY], len(data))[0], 2)
+                (left_right, forward_back) = find_rc_command(past_accel_values, accel_values, True)
+                
+                # TODO: Maybe add a button to switch to the special commands mode? -- Gavin
+                # finger = find_special_command(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value)
+                # if finger == INDEX: 
+                #     self.tello.flip_right()
+                # elif finger == MIDDLE:
+                #     self.tello.flip_left()
+                # elif finger == RING: 
+                #     self.tello.flip_forward()
+                # elif finger == PINKY: 
+                #     self.tello.flip_back()
+
+                
+                if past_accel_values is None: 
+                    past_accel_values = accel_values
+                if debug: 
+                    print_debug(data)
+
+
+
             # Possible joystick actions: JOYAXISMOTION, JOYBALLMOTION, JOYBUTTONDOWN,
             # JOYBUTTONUP, JOYHATMOTION
             for event in pygame.event.get(): # User did something. Necesary for joystick functions to work
