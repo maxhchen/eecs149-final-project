@@ -4,12 +4,13 @@ import pygame
 import numpy as np
 import time
 
+from pygame import image
+
 from utils import *
 from detect_hands import HandDetector
+from controller import Controller
 
 # Define some colors.
-BLACK = pygame.Color('black')
-WHITE = pygame.Color('white')
 FPS = 120
 JOYSTICK_ID = 0
 DEADZONE = .1
@@ -24,7 +25,7 @@ class TextPrint:
         self.screen = screen
 
     def tprint(self, textString):
-        textBitmap = self.font.render(textString, True, BLACK)
+        textBitmap = self.font.render(textString, True, pygame.Color('green'))
         self.screen.blit(textBitmap, (self.x, self.y))
         self.y += self.line_height
 
@@ -51,6 +52,8 @@ class FPVWindow:
         self.tello = init_drone()
         self.tello.send_rc_control(0, 0, 0, 0)
 
+        self.controller = Controller(self.tello)
+
         # Drone velocities between -100,100
         self.forw_back_velocity = 0
         self.left_right_velocity = 0
@@ -70,6 +73,8 @@ class FPVWindow:
 
         # Get ready to print.
         self.textPrint = TextPrint(self.screen)
+
+        self.tracking_mode = False
 
 
     def run(self):
@@ -98,15 +103,17 @@ class FPVWindow:
             if button_a:
                 if self.send_rc_control:
                     self.tello.land()
-                    self.send_rc_control = False
                 else:
                     self.tello.takeoff()
-                    self.send_rc_control = True
+                self.send_rc_control = not self.send_rc_control
 
             button_b = self.joy.get_button(1)
             if button_b:
-                done = True
+                self.controller.stop()
                 break
+
+            button_x = self.joy.get_button(3)
+            button_y = self.joy.get_button(3)
 
             dpad = self.joy.get_hat(0)
             if dpad != (0, 0) and self.send_rc_control:
@@ -125,6 +132,7 @@ class FPVWindow:
             frame = frame_read.frame
             frame = detector.findHands(frame)
             lmlist = detector.findPosition(frame)
+            hand_center = detector.findCenter(frame, lmlist)
 
             text = "Battery: {}%".format(self.tello.get_battery())
             cv2.putText(frame, text, (5, 720 - 5),
@@ -134,8 +142,8 @@ class FPVWindow:
             frame = np.flipud(frame)
             
             self.screen.fill([0, 0, 0])
-            frame = pygame.surfarray.make_surface(frame)
-            self.screen.blit(frame, (0, 0))
+            surface = pygame.surfarray.make_surface(frame)
+            self.screen.blit(surface, (0, 0))
 
             # Joystick Info
             for i in range(self.joy.get_numaxes()):
@@ -154,10 +162,37 @@ class FPVWindow:
 
             self.textPrint.tprint(f"{(self.tello.query_attitude(), [self.tello.get_speed_x(), self.tello.get_speed_y(), self.tello.get_speed_z()], [self.tello.get_acceleration_x(), self.tello.get_acceleration_y(), self.tello.get_acceleration_z()], self.tello.get_distance_tof(), self.tello.get_height())}")
 
+            # Hand Info
+            self.textPrint.tprint(f"Hand Center: {hand_center}")
+
+            if button_y:
+                self.tracking_mode = not self.tracking_mode
+                self.send_rc_control = not self.tracking_mode
+                if self.tracking_mode:
+                    self.controller.yaw_pid.setpoint = self.controller.drone.get_yaw()
+                    self.controller.height_pid.setpoint = self.controller.drone.get_distance_tof()
+                    self.controller.start()
+                else:
+                    self.controller.stop()
+
+            if self.tracking_mode:
+                print(f"Center: {hand_center}, Image: {frame.shape}")
+                self.textPrint.tprint(f"Yaw Setpoint: {self.controller.yaw_pid.setpoint}, Height Setpoint: {self.controller.height_pid.setpoint}")
+                if hand_center[0] is not None and hand_center[1] is not None:
+                    image_center = np.array(frame.shape[:2]) / 2
+                    x_diff = hand_center[0] - image_center[0]
+                    y_diff = image_center[1] - hand_center[1]
+                    yaw_p = .05
+                    height_p = .1
+                    self.controller.yaw_pid.setpoint = (self.controller.drone.get_yaw() + x_diff * yaw_p)
+                    self.controller.height_pid.setpoint = self.controller.drone.get_distance_tof() + y_diff * height_p
+                    self.textPrint.tprint(f"Xdiff: {x_diff}, Ydiff: {y_diff}")
+
             pygame.display.update()
             self.textPrint.reset()
             self.clock.tick(FPS)
 
+        self.tello.land()
         self.tello.end()
         pygame.quit()
 
@@ -170,11 +205,14 @@ class FPVWindow:
 
 if __name__ == '__main__':
     window = FPVWindow()
-    detector = HandDetector()
+    detector = HandDetector(static_mode=False, complexity=0)
     try:
         window.run()
     except Exception as e:
         print(e)
-        window.tello.end()
         pygame.quit()
         raise e
+    finally:
+        window.tello.land()
+        window.tello.end()
+
