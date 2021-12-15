@@ -44,13 +44,13 @@ class FrontEnd(object):
 
         # Init Tello object that interacts with the Tello drone
         self.tello = init_drone()
+        self.tello.send_rc_control(0, 0, 0, 0)
 
         self.controller = Controller(self.tello)
         self.tracking_mode = False
         self.hand_mode = False
-        # Get ready to print.
         self.textPrint = TextPrint(self.screen)
-        self.detector = HandDetector(static_mode=False, complexity=0)
+        self.detector = HandDetector(static_mode=False, complexity=1)
 
         # Drone velocities between -100~100
         self.forw_back_velocity = 0
@@ -85,14 +85,13 @@ class FrontEnd(object):
             if frame_read.stopped:
                 break
 
-            self.screen.fill([0, 0, 0])
-
             frame = frame_read.frame
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self.detector.image = frame
 
             if self.tracking_mode and self.detector.hand_image is not None:
                 frame = self.detector.hand_image
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = np.rot90(frame)
             frame = np.flipud(frame)
             surface = pygame.surfarray.make_surface(frame)
@@ -107,7 +106,6 @@ class FrontEnd(object):
 
             if self.tracking_mode:
                 hand_center = self.detector.hand_center
-                print(f"Center: {hand_center}, Image: {frame.shape}")
                 self.textPrint.tprint(f"Yaw Setpoint: {self.controller.yaw_pid.setpoint}, Height Setpoint: {self.controller.height_pid.setpoint}")
                 if hand_center[0] is not None and hand_center[1] is not None:
                     image_center = np.array(frame.shape[:2]) / 2
@@ -127,6 +125,7 @@ class FrontEnd(object):
                     self.left_right_velocity = self.glove.left_right
                     self.forw_back_velocity = self.glove.forward_backward
                 if self.glove.finger != 0:
+                    old_rc_control = self.send_rc_control
                     self.send_rc_control = False
                     try:
                         if self.glove.finger == SensorGlove.INDEX: 
@@ -139,7 +138,7 @@ class FrontEnd(object):
                             self.tello.flip_back()
                     except Exception as e:
                         print(e)
-                    self.send_rc_control = True
+                    self.send_rc_control = old_rc_control
 
             self.textPrint.tprint(f"LR: {self.left_right_velocity}, FB: {self.forw_back_velocity}, UD: {self.up_down_velocity}, Yaw: {self.yaw_velocity}")
             self.textPrint.tprint(f"Tracking: {self.tracking_mode}, Hand: {self.hand_mode}")
@@ -191,8 +190,10 @@ class FrontEnd(object):
                 self.tello.takeoff()
                 self.send_rc_control = True
         elif key == pygame.K_l:  # land
-            self.tello.land()
             self.send_rc_control = False
+            self.hand_mode = False
+            self.tracking_mode = False
+            self.tello.land()
         elif key == pygame.K_y:
             self.tracking_mode = not self.tracking_mode
             self.hand_mode = False
@@ -207,11 +208,10 @@ class FrontEnd(object):
                 self.controller.stop()
         elif key == pygame.K_h:
             self.hand_mode = not self.hand_mode
+            if self.tracking_mode:
+                self.controller.stop()
+                self.detector.stop()
             self.tracking_mode = False
-            # if self.hand_mode:
-                # self.glove.start()
-            # else:
-            #     self.glove.stop()
 
     def update(self):
         """ Update routine. Send velocities to Tello."""
@@ -220,10 +220,14 @@ class FrontEnd(object):
                 self.up_down_velocity, self.yaw_velocity)
 
 
-def main():
-    frontend = FrontEnd()
-    frontend.run()
-
-
 if __name__ == '__main__':
-    main()
+    frontend = FrontEnd()
+    try:
+        frontend.run()
+    finally:
+        pygame.quit()
+        frontend.controller.stop()
+        frontend.send_rc_control = False
+        frontend.tello.land()
+        frontend.tello.end()
+
