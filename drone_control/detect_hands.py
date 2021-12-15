@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import time
+import threading
 
 class HandDetector():
     def __init__(self, static_mode = False, maxHands = 2, complexity=1, detectionCon = 0.5, trackCon = 0.5):
@@ -20,8 +21,13 @@ class HandDetector():
         self.mpDraw = mp.solutions.drawing_utils
 
         self.landmarks = None
+
+        self.stop_event = threading.Event()
+        self.image = None
+        self.hand_center = (None, None)
+        self.hand_image = None
         
-    def findHands(self, img, draw = True):
+    def findHands(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.results = self.hands.process(imgRGB)
 
@@ -31,7 +37,7 @@ class HandDetector():
                     self.mpDraw.draw_landmarks(img, handLms, self.mpHands.HAND_CONNECTIONS)
         return img
 
-    def findPosition(self, img, handNo = 0, draw = True):
+    def findPosition(self, img, handNo = 0, draw=True):
         lmlist = []
         if self.results.multi_hand_landmarks:
             myHand = self.results.multi_hand_landmarks[handNo]
@@ -58,6 +64,21 @@ class HandDetector():
                 cv2.circle(img, (center_x, center_y), 10, (0, 255, 0), cv2.FILLED)
         return (center_x, center_y)
 
+    def detect(self):
+        while not self.stop_event.is_set():
+            frame = self.image.copy()
+            frame = self.findHands(frame)
+            lmlist = self.findPosition(frame, draw=False)
+            self.hand_center = self.findCenter(frame, lmlist)
+            self.hand_image = frame
+
+    def start(self):
+        self.stop_event.clear()
+        self.thread = threading.Thread(target=self.detect, args=())
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
 
 def main():
     pTime = 0
