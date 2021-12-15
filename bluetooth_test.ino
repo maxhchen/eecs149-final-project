@@ -74,6 +74,7 @@ const int pin15 = 15;
 const int pin13 = 13;
 const int pin12 = 12;
 const int pin27 = 27;
+
 void setup() {
   // Setup Bluetooth
   Serial.begin(115200);
@@ -130,19 +131,18 @@ void setup() {
     Serial.println("Accel Gyro calibration will start in 5sec.");
     Serial.println("Please leave the device still on the flat plane.");
     mpu.verbose(true);
-    delay(5000);
+    delay(1000);
     mpu.calibrateAccelGyro();
   
-    Serial.println("Mag calibration will start in 5sec.");
-    Serial.println("Please Wave device in a figure eight until done.");
-    delay(5000);
-    mpu.calibrateMag();
+//    Serial.println("Mag calibration will start in 5sec.");
+//    Serial.println("Please Wave device in a figure eight until done.");
+//    delay(1000);
+//    mpu.calibrateMag();
     print_calibration();
     mpu.verbose(false);
 }
 
 
-// can only write a maximum of 8 bit integer
 void loop() {
 if (mpu.update()) {
 
@@ -178,8 +178,7 @@ if (mpu.update()) {
     Serial.println(pin27_val);
     Serial.println(pin15_val);
     Serial.println(pin13_val);
-    Serial.println(pin12_val);
-//    
+    Serial.println(pin12_val);    
 
     // Sending the readings to bluetooth
     SerialBT.print(pin27_val);
@@ -192,7 +191,7 @@ if (mpu.update()) {
     SerialBT.print("|");
 
     // Delay for sending the values
-    delay(50);
+    delay(10);
   }
 }
 
