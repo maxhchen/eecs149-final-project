@@ -191,9 +191,27 @@ class FrontEnd(object):
                 self.send_rc_control = True
         elif key == pygame.K_l:  # land
             self.send_rc_control = False
+            self.controller.stop()
+            self.detector.stop()
             self.hand_mode = False
             self.tracking_mode = False
             self.tello.land()
+        elif key == pygame.K_g:
+            self.send_rc_control = False
+            self.tello.flip_forward()
+            self.send_rc_control = True
+        elif key == pygame.K_b:
+            self.send_rc_control = False
+            self.tello.flip_back()
+            self.send_rc_control = True
+        elif key == pygame.K_v:
+            self.send_rc_control = False
+            self.tello.flip_left()
+            self.send_rc_control = True
+        elif key == pygame.K_n:
+            self.send_rc_control = False
+            self.tello.flip_right()
+            self.send_rc_control = True
         elif key == pygame.K_y:
             self.tracking_mode = not self.tracking_mode
             self.hand_mode = False

@@ -80,9 +80,9 @@ class SensorGlove:
         # param = buffer width, # Bytes to receive over socket
         # deadline = time.time() + 20.0
 
-        print('hanging here')
+        # print('hanging here')
         raw_data = self.sock.recv(512)
-        print('recv done')
+        # print('recv done')
         # decode received data into interpretable data type (string)
         decoded_data = raw_data.decode()
         return decoded_data
@@ -151,7 +151,7 @@ class SensorGlove:
         else:
             decoded_data = self.held_data + self.receive_data_over_bluetooth()
             self.hold = False
-        print('read data')
+        # print('read data')
         if (decoded_data == "0.") or (decoded_data == "-"):
             self.hold = True
             self.held_data = decoded_data
@@ -160,7 +160,7 @@ class SensorGlove:
             self.hold = True
             self.held_data = decoded_data
             return
-        print("didn't return")
+        # print("didn't return")
         if decoded_data.find(self.packet_delimiter) != -1:
             decoded_packet = np.array(decoded_data.strip().split(self.packet_delimiter)) # [1:-1]
         else:
@@ -173,7 +173,7 @@ class SensorGlove:
             decoded_packet = decoded_packet[:-1]
         
         decoded_packet = decoded_packet[decoded_packet != '']
-        print("D:", decoded_packet)
+        # print("D:", decoded_packet)
         data = np.array([i.split(self.value_delimiter) for i in decoded_packet])
 
         # Parse characters as floating-point values
@@ -208,7 +208,7 @@ class SensorGlove:
             self.x_tilt = np.arctan(x_val / np.sqrt(y_val*y_val + z_val*z_val)) * 180.0 / np.pi;
             self.y_tilt = np.arctan(y_val / np.sqrt(x_val*x_val + z_val*z_val)) * 180.0 / np.pi;
             self.z_tilt = np.arctan(np.sqrt(x_val*x_val + y_val*y_val) / z_val) * 180.0 / np.pi;
-            print("Tilt:", self.x_tilt, self.y_tilt, self.z_tilt)
+            # print("Tilt:", self.x_tilt, self.y_tilt, self.z_tilt)
 
             print(self.left_right, self.forward_backward, self.finger)
 
@@ -223,11 +223,11 @@ class SensorGlove:
 
         while True:
             self.get_data()
-            print('before sleep')
+            # print('before sleep')
             start = time.time()
-            while time.time() - start < .1:
+            while time.time() - start < .07:
                 pass
-            print('after sleep')
+            # print('after sleep')
             
 
     def start(self):

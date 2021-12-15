@@ -92,9 +92,10 @@ class FPVWindow:
             button_b = self.joy.get_button(1)
             if button_b:
                 self.controller.stop()
+                self.detector.stop()
                 break
 
-            button_x = self.joy.get_button(3)
+            button_x = self.joy.get_button(2)
             button_y = self.joy.get_button(3)
 
             if button_y:
