@@ -66,6 +66,10 @@ class SensorGlove:
         self.hold = False
         self.held_data = ''
         self.past_accel_values = None
+        self.decoded_data = None
+
+        self.accel_offset = 0
+        self.gyro_offset = 0
 
         self.connect()
 
@@ -81,7 +85,7 @@ class SensorGlove:
         # deadline = time.time() + 20.0
 
         # print('hanging here')
-        raw_data = self.sock.recv(512)
+        raw_data = self.sock.recv(1024)
         # print('recv done')
         # decode received data into interpretable data type (string)
         decoded_data = raw_data.decode()
@@ -146,20 +150,40 @@ class SensorGlove:
         self.accel_offset, self.gyro_offset = accel_values_avg, gyro_values_avg
 
     def get_data(self):
-        if not self.hold:
-            decoded_data = self.receive_data_over_bluetooth()
-        else:
-            decoded_data = self.held_data + self.receive_data_over_bluetooth()
-            self.hold = False
+        # self.hold = False
+        # self.held_data = ''
+        # if not self.hold:
+        #     decoded_data = self.receive_data_over_bluetooth()
+        # else:
+        #     decoded_data = self.held_data + self.receive_data_over_bluetooth()
+        #     self.hold = False
+        decoded_data = self.decoded_data
+        if decoded_data is None:
+            self.left_right = 0
+            self.forward_backward = 0
+            return
+
         # print('read data')
-        if (decoded_data == "0.") or (decoded_data == "-"):
-            self.hold = True
-            self.held_data = decoded_data
+        # print(decoded_data)
+        if self.packet_delimiter not in decoded_data:
+            self.left_right = 0
+            self.forward_backward = 0
             return
-        if decoded_data[-1] != self.packet_delimiter:
-            self.hold = True
-            self.held_data = decoded_data
-            return
+        
+        first_delim = decoded_data.index(self.packet_delimiter)
+        last_delim = len(decoded_data) -1 -  decoded_data[::-1].index(self.packet_delimiter)
+        decoded_packet = decoded_data[first_delim+1:last_delim]
+
+        # print(decoded_packet)
+
+        # if (decoded_data == "0.") or (decoded_data == "-"):
+        #     self.hold = True
+        #     self.held_data = decoded_data
+        #     return
+        # if decoded_data[-1] != self.packet_delimiter:
+        #     self.hold = True
+        #     self.held_data = decoded_data
+        #     return
         # print("didn't return")
         if decoded_data.find(self.packet_delimiter) != -1:
             decoded_packet = np.array(decoded_data.strip().split(self.packet_delimiter)) # [1:-1]
@@ -174,10 +198,23 @@ class SensorGlove:
         
         decoded_packet = decoded_packet[decoded_packet != '']
         # print("D:", decoded_packet)
-        data = np.array([i.split(self.value_delimiter) for i in decoded_packet])
 
-        # Parse characters as floating-point values
-        data = data.astype(float)
+        data = []
+        try:
+            for p in decoded_packet:
+                s = p.split(self.value_delimiter)
+                if len(s) != 10:
+                    continue
+                data.append(s)
+            # Parse characters as floating-point values
+            data = np.array(data, dtype=float)
+            # data = np.array([i.split(self.value_delimiter) for i in decoded_packet])
+        except Exception as e:
+            print(e)
+            self.left_right = 0
+            self.forward_backward = 0
+            return
+        
         self.data = data
         
         # strip string and split by specified delimiter; ignore the first and last elements to prevent
@@ -204,10 +241,10 @@ class SensorGlove:
             
             self.finger = find_special_command(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value)                
 
-            x_val, y_val, z_val = accel_values - (self.past_accel_values if self.past_accel_values is not None else 0)
-            self.x_tilt = np.arctan(x_val / np.sqrt(y_val*y_val + z_val*z_val)) * 180.0 / np.pi;
-            self.y_tilt = np.arctan(y_val / np.sqrt(x_val*x_val + z_val*z_val)) * 180.0 / np.pi;
-            self.z_tilt = np.arctan(np.sqrt(x_val*x_val + y_val*y_val) / z_val) * 180.0 / np.pi;
+            # x_val, y_val, z_val = accel_values - (self.past_accel_values if self.past_accel_values is not None else 0)
+            # self.x_tilt = np.arctan(x_val / np.sqrt(y_val*y_val + z_val*z_val)) * 180.0 / np.pi;
+            # self.y_tilt = np.arctan(y_val / np.sqrt(x_val*x_val + z_val*z_val)) * 180.0 / np.pi;
+            # self.z_tilt = np.arctan(np.sqrt(x_val*x_val + y_val*y_val) / z_val) * 180.0 / np.pi;
             # print("Tilt:", self.x_tilt, self.y_tilt, self.z_tilt)
 
             print(self.left_right, self.forward_backward, self.finger)
@@ -232,27 +269,35 @@ class SensorGlove:
 
     def start(self):
         self.stop_event.clear()
-        self.calibrated = False
-        self.thread = threading.Thread(target=self.process, args=())
+        self.thread = threading.Thread(target=self.thread_func, args=())
         self.thread.start()
 
     def stop(self):
         self.stop_event.set()
 
+    def thread_func(self):
+        while not self.stop_event.is_set():
+            raw_data = self.sock.recv(1024)
+            # print('recv done')
+            # decode received data into interpretable data type (string)
+            decoded_data = raw_data.decode()
+            self.decoded_data = decoded_data
+
 
 if __name__ == '__main__':
     glove = SensorGlove()
-    glove.process()
+    glove.calibrate_imu(10)
+    glove.start()
     # q = multiprocessing.Queue()
     # p = multiprocessing.Process(target=glove.process, args=(q,))
     # p.start()
-    # start = time.time()
-    # while time.time() - start < 10:
-    #     if not q.empty():
-    #         print(q.get())
+    start = time.time()
+    while time.time() - start < 10:
+        print(glove.decoded_data)
+        glove.get_data()
     # glove.stop()
     # p.join()
     # glove.start()
     # time.sleep(10)
-    # glove.stop()
-    # time.sleep(1)
+    glove.stop()
+    time.sleep(1)

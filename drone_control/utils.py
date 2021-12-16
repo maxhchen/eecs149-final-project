@@ -77,10 +77,11 @@ def send_special_command(drone, index_finger_value, middle_finger_value, ring_fi
 
 def find_special_command(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value):
     # TODO: Tune these values
-    index_finger_threshhold = 500
-    middle_finger_threshhold = 4000
-    ring_finger_threshhold = 500
-    pinky_finger_threshhold = 500
+    index_finger_threshhold = 100
+    middle_finger_threshhold = 1000
+    ring_finger_threshhold = 100
+    pinky_finger_threshhold = 100
+    print(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value)
 
     if index_finger_value > index_finger_threshhold:
         print("INDEX")
@@ -105,8 +106,8 @@ for moving forward/backward and left/right
 def find_rc_command(past_accel_values, accel_values, debug = False):
     # moving left-right is y, moving forward-backward is x, moving up-down is z
     # TODO: Tune this
-    acc_x_threshhold = 0.16
-    acc_y_threshhold = 0.25
+    acc_x_threshhold = 0.14
+    acc_y_threshhold = 0.27
     
     if past_accel_values is None: 
         return None
@@ -117,7 +118,7 @@ def find_rc_command(past_accel_values, accel_values, debug = False):
     # 2 element tuple
     # {left/right, forward/backward}
 
-    kp = 80 # TODO: Tune this
+    kp = 60 # TODO: Tune this
     if abs(accel_values[1]) > acc_y_threshhold:
         if accel_values[1] > 0:
             print("MOVING RIGHT")

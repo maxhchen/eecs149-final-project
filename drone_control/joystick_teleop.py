@@ -3,8 +3,6 @@ import pygame
 import numpy as np
 import time
 
-from pygame import image
-
 from utils import *
 from detect_hands import HandDetector
 from controller import Controller
@@ -31,6 +29,7 @@ class FPVWindow:
 
         self.tello = init_drone()
         self.tello.send_rc_control(0, 0, 0, 0)
+        self.tello.RESPONSE_TIMEOUT = 3
 
         self.controller = Controller(self.tello)
         self.detector = HandDetector(static_mode=False, complexity=1)
@@ -83,25 +82,31 @@ class FPVWindow:
 
             button_a = self.joy.get_button(0)
             if button_a:
-                if self.send_rc_control:
-                    self.tello.land()
-                else:
+                if not self.send_rc_control:
                     self.tello.takeoff()
-                self.send_rc_control = not self.send_rc_control
+                    self.send_rc_control = True
+                # if self.send_rc_control:
+                #     self.controller.stop()
+                #     self.detector.stop()
+                #     self.tracking_mode = False
+                #     self.tello.land()
+                # else:
+                #     self.tello.takeoff()
+                # self.send_rc_control = not self.send_rc_control
 
             button_b = self.joy.get_button(1)
             if button_b:
+                self.send_rc_control = False
                 self.controller.stop()
                 self.detector.stop()
-                break
+                self.glove.stop()
+                self.tello.land()
 
             button_x = self.joy.get_button(2)
             button_y = self.joy.get_button(3)
 
             if button_y:
                 self.tracking_mode = not self.tracking_mode
-                self.hand_mode = False
-                self.send_rc_control = not self.tracking_mode
                 if self.tracking_mode:
                     self.detector.start()
                     self.controller.yaw_pid.setpoint = self.controller.drone.get_yaw()
@@ -112,10 +117,10 @@ class FPVWindow:
                     self.controller.stop()
             elif button_x:
                 self.hand_mode = not self.hand_mode
-                if self.tracking_mode:
-                    self.controller.stop()
-                    self.detector.stop()
-                self.tracking_mode = False
+                if self.hand_mode:
+                    self.glove.start()
+                else:
+                    self.glove.stop()
 
             dpad = self.joy.get_hat(0)
             if dpad != (0, 0) and self.send_rc_control:
@@ -172,20 +177,19 @@ class FPVWindow:
                 if hand_center[0] is not None and hand_center[1] is not None:
                     image_center = np.array(frame.shape[:2]) / 2
                     x_diff = hand_center[0] - image_center[0]
-                    y_diff = image_center[1] - hand_center[1]
+                    y_diff = image_center[1] - 100 - hand_center[1]
                     yaw_p = .05
                     height_p = .1
                     self.controller.yaw_pid.setpoint = (self.controller.drone.get_yaw() + x_diff * yaw_p)
                     self.controller.height_pid.setpoint = self.controller.drone.get_distance_tof() + y_diff * height_p
                     self.textPrint.tprint(f"Xdiff: {x_diff}, Ydiff: {y_diff}")
+                self.yaw_velocity = self.controller.yaw_vel
+                self.up_down_velocity = self.controller.z_vel
 
             if self.hand_mode:
                 self.glove.get_data()
-                if self.glove.calibrated:
-                    self.yaw_velocity = 0
-                    self.up_down_velocity = 0
-                    self.left_right_velocity = self.glove.left_right
-                    self.forw_back_velocity = self.glove.forward_backward
+                self.left_right_velocity = self.glove.left_right
+                self.forw_back_velocity = self.glove.forward_backward
                 if self.glove.finger != 0:
                     old_rc_control = self.send_rc_control
                     self.send_rc_control = False
@@ -207,7 +211,10 @@ class FPVWindow:
 
             pygame.display.update()
             self.textPrint.reset()
-            self.clock.tick(FPS)
+            # self.clock.tick(FPS)
+            start = time.time()
+            while time.time() - start < (1.0 / FPS):
+                pass
 
         self.tello.land()
         self.tello.end()
@@ -227,6 +234,8 @@ if __name__ == '__main__':
     finally:
         pygame.quit()
         window.controller.stop()
+        window.detector.stop()
+        window.glove.stop()
         window.send_rc_control = False
         window.tello.land()
         window.tello.end()

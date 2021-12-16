@@ -116,14 +116,13 @@ class FrontEnd(object):
                     self.controller.yaw_pid.setpoint = (self.controller.drone.get_yaw() + x_diff * yaw_p)
                     self.controller.height_pid.setpoint = self.controller.drone.get_distance_tof() + y_diff * height_p
                     self.textPrint.tprint(f"Xdiff: {x_diff}, Ydiff: {y_diff}")
+                self.yaw_velocity = self.controller.yaw_vel
+                self.up_down_velocity = self.controller.z_vel
 
             if self.hand_mode:
                 self.glove.get_data()
-                if self.glove.calibrated:
-                    self.yaw_velocity = 0
-                    self.up_down_velocity = 0
-                    self.left_right_velocity = self.glove.left_right
-                    self.forw_back_velocity = self.glove.forward_backward
+                self.left_right_velocity = self.glove.left_right
+                self.forw_back_velocity = self.glove.forward_backward
                 if self.glove.finger != 0:
                     old_rc_control = self.send_rc_control
                     self.send_rc_control = False
@@ -145,7 +144,10 @@ class FrontEnd(object):
 
             pygame.display.update()
             self.textPrint.reset()
-            time.sleep(1 / FPS) # TODO: Maybe make busy wait
+            # time.sleep(1 / FPS) # TODO: Maybe make busy wait
+            start = time.time()
+            while time.time() - start < (1.0 / FPS):
+                pass
 
         # Call it always before finishing. To deallocate resources.
         self.tello.end()
@@ -193,8 +195,7 @@ class FrontEnd(object):
             self.send_rc_control = False
             self.controller.stop()
             self.detector.stop()
-            self.hand_mode = False
-            self.tracking_mode = False
+            self.glove.stop()
             self.tello.land()
         elif key == pygame.K_g:
             self.send_rc_control = False
@@ -214,8 +215,6 @@ class FrontEnd(object):
             self.send_rc_control = True
         elif key == pygame.K_y:
             self.tracking_mode = not self.tracking_mode
-            self.hand_mode = False
-            self.send_rc_control = not self.tracking_mode
             if self.tracking_mode:
                 self.detector.start()
                 self.controller.yaw_pid.setpoint = self.controller.drone.get_yaw()
@@ -226,10 +225,10 @@ class FrontEnd(object):
                 self.controller.stop()
         elif key == pygame.K_h:
             self.hand_mode = not self.hand_mode
-            if self.tracking_mode:
-                self.controller.stop()
-                self.detector.stop()
-            self.tracking_mode = False
+            if self.hand_mode:
+                self.glove.start()
+            else:
+                self.glove.stop()
 
     def update(self):
         """ Update routine. Send velocities to Tello."""

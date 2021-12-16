@@ -87,13 +87,17 @@ class Controller:
         
         self.stop_event = threading.Event()
 
-    def start(self):
+        self.yaw_vel = 0
+        self.z_vel = 0
+
+    def start(self, send=False):
         self.yaw_pid.reset()
         self.height_pid.reset()
         self.x_pid.reset()
         self.y_pid.reset()
         self.stop_event.clear()
         self.start_time = time.time()
+        self.send = send
         self.thread = threading.Thread(target=self.send_control, args=())
         self.thread.start()
 
@@ -117,12 +121,13 @@ class Controller:
         self.y_pid.cur_val = y_corrected
         
         while not self.stop_event.is_set():
-            yaw_vel = self.yaw_pid.calculate(time.time() - self.start_time)
-            z_vel = self.height_pid.calculate(time.time() - self.start_time)
+            self.yaw_vel = self.yaw_pid.calculate(time.time() - self.start_time)
+            self.z_vel = self.height_pid.calculate(time.time() - self.start_time)
             x_vel = self.x_pid.calculate(time.time() - self.start_time)
             y_vel = self.y_pid.calculate(time.time() - self.start_time)
             # print("RC Vel:", round(x_vel, 2), round(y_vel, 2), round(x_corrected(), 2), round(y_corrected(), 2))
-            self.drone.send_rc_control(0, 0, int(z_vel), int(yaw_vel))
+            if self.send:
+                self.drone.send_rc_control(0, 0, int(self.z_vel), int(self.yaw_vel))
             time.sleep(0.01)
         print("Finished autonomous control")
 
@@ -137,7 +142,7 @@ if __name__ == '__main__':
     controller.height_pid.setpoint = controller.init_height
 
     try:
-        controller.start()
+        controller.start(send=True)
         # controller.height_pid.setpoint = 100
         while not controller.on_target():
             # if controller.x_pid.on_target():
