@@ -43,6 +43,7 @@ class FPVWindow:
         self.send_rc_control = False
         self.tracking_mode = False
         self.hand_mode = False
+        self.finger_mode = False
 
         # Initialize the joysticks.
         pygame.joystick.init()
@@ -83,16 +84,9 @@ class FPVWindow:
             button_a = self.joy.get_button(0)
             if button_a:
                 if not self.send_rc_control:
+                    self.glove.start()
                     self.tello.takeoff()
                     self.send_rc_control = True
-                # if self.send_rc_control:
-                #     self.controller.stop()
-                #     self.detector.stop()
-                #     self.tracking_mode = False
-                #     self.tello.land()
-                # else:
-                #     self.tello.takeoff()
-                # self.send_rc_control = not self.send_rc_control
 
             button_b = self.joy.get_button(1)
             if button_b:
@@ -100,10 +94,15 @@ class FPVWindow:
                 self.controller.stop()
                 self.detector.stop()
                 self.glove.stop()
+                self.tracking_mode = False
+                self.hand_mode = False
+                self.finger_mode = False
                 self.tello.land()
 
             button_x = self.joy.get_button(2)
             button_y = self.joy.get_button(3)
+            left_bump = self.joy.get_button(4)
+            right_bump = self.joy.get_button(5)
 
             if button_y:
                 self.tracking_mode = not self.tracking_mode
@@ -117,10 +116,8 @@ class FPVWindow:
                     self.controller.stop()
             elif button_x:
                 self.hand_mode = not self.hand_mode
-                if self.hand_mode:
-                    self.glove.start()
-                else:
-                    self.glove.stop()
+            elif right_bump:
+                self.finger_mode = not self.finger_mode
 
             dpad = self.joy.get_hat(0)
             if dpad != (0, 0) and self.send_rc_control:
@@ -186,28 +183,32 @@ class FPVWindow:
                 self.yaw_velocity = self.controller.yaw_vel
                 self.up_down_velocity = self.controller.z_vel
 
-            if self.hand_mode:
+            if self.hand_mode or self.finger_mode:
                 self.glove.get_data()
+
+            if self.hand_mode:
                 self.left_right_velocity = self.glove.left_right
                 self.forw_back_velocity = self.glove.forward_backward
+
+            if self.finger_mode:
                 if self.glove.finger != 0:
                     old_rc_control = self.send_rc_control
                     self.send_rc_control = False
                     try:
                         if self.glove.finger == SensorGlove.INDEX: 
-                            self.tello.flip_right()
-                        elif self.glove.finger == SensorGlove.MIDDLE:
-                            self.tello.flip_left()
-                        elif self.glove.finger == SensorGlove.RING: 
                             self.tello.flip_forward()
-                        elif self.glove.finger == SensorGlove.PINKY: 
+                        elif self.glove.finger == SensorGlove.MIDDLE:
+                            self.tello.flip_right()
+                        elif self.glove.finger == SensorGlove.RING: 
                             self.tello.flip_back()
+                        elif self.glove.finger == SensorGlove.PINKY: 
+                            self.tello.flip_left()
                     except Exception as e:
                         print(e)
                     self.send_rc_control = old_rc_control
 
             self.textPrint.tprint(f"LR: {self.left_right_velocity}, FB: {self.forw_back_velocity}, UD: {self.up_down_velocity}, Yaw: {self.yaw_velocity}")
-            self.textPrint.tprint(f"Tracking: {self.tracking_mode}, Hand: {self.hand_mode}")
+            self.textPrint.tprint(f"Tracking: {self.tracking_mode}, Hand: {self.hand_mode}, Finger: {self.finger_mode}")
 
             pygame.display.update()
             self.textPrint.reset()

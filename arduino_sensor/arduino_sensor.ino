@@ -1,7 +1,6 @@
 #include "BluetoothSerial.h"
 #include "esp_bt_device.h"
 #include "MPU9250.h"
-#include <SparkFunADXL313.h> 
 
 uint8_t addrs[7] = {0};
 uint8_t device_count = 0;

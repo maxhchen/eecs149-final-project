@@ -77,10 +77,10 @@ def send_special_command(drone, index_finger_value, middle_finger_value, ring_fi
 
 def find_special_command(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value):
     # TODO: Tune these values
-    index_finger_threshhold = 100
+    index_finger_threshhold = 60
     middle_finger_threshhold = 1000
-    ring_finger_threshhold = 100
-    pinky_finger_threshhold = 100
+    ring_finger_threshhold = 20
+    pinky_finger_threshhold = 20
     print(index_finger_value, middle_finger_value, ring_finger_value, pinky_finger_value)
 
     if index_finger_value > index_finger_threshhold:

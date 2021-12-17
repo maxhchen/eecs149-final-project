@@ -2,6 +2,7 @@ import bluetooth
 import time
 import numpy as np
 import threading
+import multiprocessing
 
 from utils import * 
 
@@ -171,7 +172,10 @@ class SensorGlove:
             return
         
         first_delim = decoded_data.index(self.packet_delimiter)
-        last_delim = len(decoded_data) -1 -  decoded_data[::-1].index(self.packet_delimiter)
+        if self.packet_delimiter in decoded_data[first_delim+1:]:
+            last_delim = len(decoded_data) -1 - decoded_data[::-1].index(self.packet_delimiter)
+        else:
+            last_delim = len(decoded_data)
         decoded_packet = decoded_data[first_delim+1:last_delim]
 
         # print(decoded_packet)
@@ -253,51 +257,30 @@ class SensorGlove:
                 self.past_accel_values = accel_values
 
     def process(self):
-        print("Started Arduino processing")
-        self.calibrate_imu(50)
-        self.calibrated = True
-        print("Finished Calibrating IMU")
-
-        while True:
-            self.get_data()
-            # print('before sleep')
-            start = time.time()
-            while time.time() - start < .07:
-                pass
-            # print('after sleep')
-            
+        while not self.stop_event.is_set():
+            raw_data = self.sock.recv(1024)
+            # decode received data into interpretable data type (string)
+            self.decoded_data = raw_data.decode()
+            time.sleep(0.05)
 
     def start(self):
         self.stop_event.clear()
-        self.thread = threading.Thread(target=self.thread_func, args=())
+        self.thread = threading.Thread(target=self.process, args=())
         self.thread.start()
 
     def stop(self):
         self.stop_event.set()
-
-    def thread_func(self):
-        while not self.stop_event.is_set():
-            raw_data = self.sock.recv(1024)
-            # print('recv done')
-            # decode received data into interpretable data type (string)
-            decoded_data = raw_data.decode()
-            self.decoded_data = decoded_data
 
 
 if __name__ == '__main__':
     glove = SensorGlove()
     glove.calibrate_imu(10)
     glove.start()
-    # q = multiprocessing.Queue()
-    # p = multiprocessing.Process(target=glove.process, args=(q,))
-    # p.start()
-    start = time.time()
-    while time.time() - start < 10:
-        print(glove.decoded_data)
-        glove.get_data()
-    # glove.stop()
-    # p.join()
-    # glove.start()
-    # time.sleep(10)
-    glove.stop()
-    time.sleep(1)
+    try:
+        while True:
+            # print(glove.decoded_data)
+            glove.get_data()
+            time.sleep(.1)
+    finally:
+        glove.stop()
+
